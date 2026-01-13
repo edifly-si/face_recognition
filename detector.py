@@ -2,18 +2,16 @@ import cv2
 import time
 import requests
 from face_engine import FaceEngine
-
-CAMERA_INDEX = 0
-SCALE = 0.5
-COOLDOWN = 5
-SHOW_WINDOW = True
-TH_ACCEPT = 0.4
-WEBHOOK_URL = "http://localhost:3000/face-event"
+from settings import (
+    VIDEO_SOURCE, SCALE, COOLDOWN,
+    SHOW_WINDOW, TH_ACCEPT, WEBHOOK_URL
+)
 
 engine = FaceEngine()
 engine.start_watcher()
 
-cap = cv2.VideoCapture(CAMERA_INDEX)
+print("[INFO] Video source:", VIDEO_SOURCE)
+cap = cv2.VideoCapture(VIDEO_SOURCE)
 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 last_sent = {}
@@ -33,37 +31,28 @@ while True:
     for r in results:
         name = r["name"]
         dist = r["distance"]
-
-        if "box" not in r:
-            continue
-
         x1, y1, x2, y2 = r["box"]
+        print("[DEBUG]", name, dist, (x1, y1, x2, y2))
 
         if dist < TH_ACCEPT:
-            color = (0, 0, 255)  # RED
+            color = (0, 255, 0)
             label = f"{name} ({dist:.3f})"
-            status = "REJECT"
-            
-        else:
-            color = (0, 255, 0)  # GREEN
-            label = f"PASS ({dist:.3f})"
             status = "ACCEPT"
+        else:
+            color = (0, 0, 255)
+            label = f"UNKNOWN ({dist:.3f})"
+            status = "REJECT"
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         cv2.putText(
-            frame,
-            label,
-            (x1, max(25, y1 - 10)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            color,
-            2
+            frame, label,
+            (x1, max(20, y1 - 10)),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2
         )
 
         print(f"[GATE] {status} | {label}")
 
-
-        if name == "PASS":
+        if status != "ACCEPT":
             continue
 
         if now - last_sent.get(name, 0) < COOLDOWN:
@@ -83,12 +72,10 @@ while True:
 
     if SHOW_WINDOW:
         cv2.imshow("Face Recognition", frame)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
 
-    # tekan Q buat keluar
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
-
-    time.sleep(0.05)
+    time.sleep(0.03)
 
 cap.release()
 cv2.destroyAllWindows()

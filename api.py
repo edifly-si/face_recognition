@@ -5,6 +5,8 @@ import tempfile
 import os
 from zipfile import ZipFile
 from face_engine import FaceEngine
+from settings import FLASK_HOST, FLASK_PORT
+
 
 app = Flask(__name__)
 engine = FaceEngine()
@@ -68,4 +70,4 @@ def register_zip():
     return {"success": ok, "result": result}
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, threaded=True)
+    app.run(host=FLASK_HOST, port=FLASK_PORT, threaded=True)

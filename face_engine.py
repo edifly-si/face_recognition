@@ -5,18 +5,16 @@ import pickle
 import os
 import threading
 import time
-
-DB_PATH = "face_db.pkl"
-FACES_DIR = "faces"
-THRESHOLD = 0.6
+from settings import (
+    DB_PATH, FACES_DIR, THRESHOLD,
+    SHAPE_MODEL, FACE_MODEL
+)
 
 os.makedirs(FACES_DIR, exist_ok=True)
 
 detector = dlib.get_frontal_face_detector()
-sp = dlib.shape_predictor("models/shape_predictor_68_face_landmarks.dat")
-facerec = dlib.face_recognition_model_v1(
-    "models/dlib_face_recognition_resnet_model_v1.dat"
-)
+sp = dlib.shape_predictor(SHAPE_MODEL)
+facerec = dlib.face_recognition_model_v1(FACE_MODEL)
 
 class FaceEngine:
     def __init__(self):

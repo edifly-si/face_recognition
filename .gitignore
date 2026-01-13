@@ -1,3 +1,4 @@
 faces/
 __pycache__
 *.pkl
+.env
