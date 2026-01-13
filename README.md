@@ -52,7 +52,7 @@ pip install -r requirements.txt
 ├── detector.py            # Realtime face recognition loop
 ├── face_engine.py         # Core face engine
 ├── faces/                 # Temporary extracted ZIP images
-├── face_db/               # Face database (encodings)
+├── face_db                # Face database (encodings)
 └── README.md
 ```
 
