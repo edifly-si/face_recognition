@@ -5,7 +5,6 @@
 
 # Core Requirements
 Python==3.x
-Kivy==2.1.0
 opencv-python==4.5.4
 dlib==19.23.0
 
