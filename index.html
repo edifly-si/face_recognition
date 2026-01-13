@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Face Gate Monitor</title>
+
+    <style>
+        body {
+            background: #020617;
+            color: #e5e7eb;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        h2 {
+            margin-bottom: 12px;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+
+        .video-box {
+            position: relative;
+        }
+
+        canvas {
+            border-radius: 10px;
+            border: 3px solid #1e293b;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            background: rgba(0,0,0,0.6);
+        }
+
+        .accept {
+            color: #22c55e;
+        }
+
+        .reject {
+            color: #ef4444;
+        }
+
+        .log {
+            width: 350px;
+            height: 360px;
+            background: #020617;
+            border-radius: 10px;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 13px;
+            border: 2px solid #1e293b;
+        }
+
+        .log div {
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px dashed #1e293b;
+        }
+    </style>
+</head>
+<body>
+
+<h2>🚪 Face Gate Realtime Monitor</h2>
+
+<div class="container">
+    <div class="video-box">
+        <canvas id="canvas"></canvas>
+        <div id="status" class="overlay">WAITING</div>
+    </div>
+
+    <div class="log" id="log"></div>
+</div>
+
+<script>
+    const WS_URL = "ws://localhost:3001/ws/face-stream";
+    const ws = new WebSocket(WS_URL);
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const statusBox = document.getElementById("status");
+    const logBox = document.getElementById("log");
+
+    let img = new Image();
+
+    ws.onopen = () => {
+        statusBox.textContent = "CONNECTED";
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (!data.frame) return;
+
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            // draw frame
+            ctx.drawImage(img, 0, 0);
+
+            // draw bounding box
+            if (data.box) {
+                const [x1, y1, x2, y2] = data.box;
+
+                const isAccept = data.status === "PASS";
+                ctx.strokeStyle = isAccept ? "#22c55e" : "#ef4444";
+                ctx.lineWidth = 3;
+
+                ctx.strokeRect(
+                    x1, y1,
+                    x2 - x1,
+                    y2 - y1
+                );
+
+                ctx.font = "16px Arial";
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.fillText(
+                    `${data.name} (${data.distance})`,
+                    x1,
+                    y1 > 20 ? y1 - 8 : y1 + 20
+                );
+            }
+        };
+
+        img.src = "data:image/jpeg;base64," + data.frame;
+
+        // status overlay
+        statusBox.textContent =
+            `${data.status} | ${data.name} | ${data.distance}`;
+        statusBox.className =
+            "overlay " + (data.status);
+
+        // log
+        const row = document.createElement("div");
+        row.innerHTML = `
+            <b>${new Date(data.timestamp * 1000).toLocaleTimeString()}</b><br/>
+            Name: ${data.name}<br/>
+            Distance: ${data.distance}<br/>
+            Status:
+            <b style="color:${data.status === "PASS" ? "#22c55e" : "#ef4444"}">
+                ${data.status}
+            </b>
+        `;
+        logBox.prepend(row);
+
+        if (logBox.children.length > 25) {
+            logBox.removeChild(logBox.lastChild);
+        }
+    };
+
+    ws.onerror = () => {
+        statusBox.textContent = "WS ERROR";
+    };
+</script>
+
+</body>
+</html>
