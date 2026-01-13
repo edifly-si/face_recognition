@@ -46,7 +46,7 @@ while True:
             
         else:
             color = (0, 255, 0)  # GREEN
-            label = f"UNKNOWN ({dist:.3f})"
+            label = f"PASS ({dist:.3f})"
             status = "ACCEPT"
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
@@ -63,7 +63,7 @@ while True:
         print(f"[GATE] {status} | {label}")
 
 
-        if name == "UNKNOWN":
+        if name == "PASS":
             continue
 
         if now - last_sent.get(name, 0) < COOLDOWN:
