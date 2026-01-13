@@ -49,10 +49,10 @@ pip install flask opencv-python numpy requests
 ```
 .
 ├── api.py                 # Flask REST API
-├── realtime_daemon.py     # Realtime face recognition loop
+├── detector.py            # Realtime face recognition loop
 ├── face_engine.py         # Core face engine
 ├── faces/                 # Temporary extracted ZIP images
-├── Face_Directory/        # Face database (encodings)
+├── face_db/               # Face database (encodings)
 └── README.md
 ```
 
