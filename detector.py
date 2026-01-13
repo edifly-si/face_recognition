@@ -6,6 +6,7 @@ from face_engine import FaceEngine
 CAMERA_INDEX = 0
 SCALE = 0.5
 COOLDOWN = 5
+SHOW_WINDOW = False
 WEBHOOK_URL = "http://localhost:3000/face-event"
 
 engine = FaceEngine()
@@ -32,6 +33,22 @@ while True:
         name = r["name"]
         dist = r["distance"]
 
+        # OPTIONAL: kalau ada box dari engine
+        if "box" in r:
+            x1, y1, x2, y2 = r["box"]
+            color = (0, 255, 0) if name != "UNKNOWN" else (0, 0, 255)
+
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(
+                frame,
+                f"{name} ({dist:.3f})",
+                (x1, y1 - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                color,
+                2
+            )
+
         print(f"[DETECT] {name} ({dist:.4f})")
 
         if name == "UNKNOWN":
@@ -52,4 +69,14 @@ while True:
         except Exception as e:
             print("[WEBHOOK ERROR]", e)
 
+    if SHOW_WINDOW:
+        cv2.imshow("Face Recognition", frame)
+
+    # tekan Q buat keluar
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+
     time.sleep(0.05)
+
+cap.release()
+cv2.destroyAllWindows()
