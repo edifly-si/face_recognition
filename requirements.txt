@@ -4,9 +4,9 @@
 # ---------------------------------------------
 
 # Core Requirements
-Python==3.x
-opencv-python==4.5.4
-dlib==19.23.0
+flask==3.0.3
+opencv-python==4.10.0.84
+dlib==20.0.0
 
 # ---------------------------------------------
 # End of Requirements File
