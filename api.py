@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
 import cv2
 import numpy as np
+import tempfile
+import os
+from zipfile import ZipFile
 from face_engine import FaceEngine
 
 app = Flask(__name__)
@@ -12,7 +15,7 @@ def read_image(file):
     return cv2.imdecode(data, cv2.IMREAD_COLOR)
 
 # =====================
-# REGISTER
+# REGISTER SINGLE
 # =====================
 @app.route("/register", methods=["POST"])
 def register():
@@ -20,13 +23,11 @@ def register():
     file = request.files.get("image")
 
     if not name or not file:
-        return jsonify({"error": "name & image required"}), 400
+        return {"error": "name & image required"}, 400
 
     frame = read_image(file)
-    frame = cv2.resize(frame, None, fx=0.5, fy=0.5)
-
     ok, msg = engine.register(name, frame)
-    return jsonify({"success": ok, "message": msg})
+    return {"success": ok, "message": msg}
 
 # =====================
 # UNREGISTER
@@ -34,24 +35,37 @@ def register():
 @app.route("/unregister", methods=["POST"])
 def unregister():
     name = request.form.get("name")
-
     if not name:
-        return jsonify({"error": "name required"}), 400
+        return {"error": "name required"}, 400
 
     ok, msg = engine.unregister(name)
-    return jsonify({"success": ok, "message": msg})
+    return {"success": ok, "message": msg}
 
 # =====================
-# LIST FACES
+# LIST
 # =====================
 @app.route("/faces", methods=["GET"])
-def list_faces():
+def faces():
     return jsonify(list(engine.db.keys()))
 
+# =====================
+# REGISTER ZIP
+# =====================
+@app.route("/register-faces", methods=["POST"])
+def register_zip():
+    if "zip" not in request.files:
+        return {"error": "zip missing"}, 400
+
+    zip_file = request.files["zip"]
+    tmp = tempfile.gettempdir()
+    zip_path = os.path.join(tmp, zip_file.filename)
+    zip_file.save(zip_path)
+
+    with ZipFile(zip_path, "r") as z:
+        z.extractall("faces")
+
+    ok, result = engine.register_from_folder("faces")
+    return {"success": ok, "result": result}
+
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=False,
-        threaded=False
-    )
+    app.run(host="0.0.0.0", port=5000, threaded=True)

@@ -7,7 +7,10 @@ import threading
 import time
 
 DB_PATH = "face_db.pkl"
+FACES_DIR = "faces"
 THRESHOLD = 0.6
+
+os.makedirs(FACES_DIR, exist_ok=True)
 
 detector = dlib.get_frontal_face_detector()
 sp = dlib.shape_predictor("models/shape_predictor_68_face_landmarks.dat")
@@ -23,7 +26,7 @@ class FaceEngine:
         self.load_db(force=True)
 
     # =====================
-    # LOAD DB
+    # DB LOAD
     # =====================
     def load_db(self, force=False):
         if not os.path.exists(DB_PATH):
@@ -64,7 +67,7 @@ class FaceEngine:
         os.replace(tmp, DB_PATH)
 
     # =====================
-    # REGISTER
+    # REGISTER (single image)
     # =====================
     def register(self, name, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -80,7 +83,7 @@ class FaceEngine:
             self.db[name] = desc
             self._save_db()
 
-        return True, f"Wajah {name} berhasil diregister"
+        return True, f"Wajah {name} diregister"
 
     # =====================
     # UNREGISTER
@@ -93,7 +96,12 @@ class FaceEngine:
             del self.db[name]
             self._save_db()
 
-        return True, f"Wajah {name} berhasil dihapus"
+        for ext in (".jpg", ".png", ".jpeg"):
+            p = os.path.join(FACES_DIR, name + ext)
+            if os.path.exists(p):
+                os.remove(p)
+
+        return True, f"Wajah {name} dihapus"
 
     # =====================
     # RECOGNIZE
@@ -128,3 +136,45 @@ class FaceEngine:
             })
 
         return results
+
+    # =====================
+    # REGISTER FROM FOLDER
+    # =====================
+    def register_from_folder(self, folder):
+        if not os.path.isdir(folder):
+            return False, "Folder tidak ada"
+
+        success, failed = 0, []
+
+        for f in os.listdir(folder):
+            if not f.lower().endswith((".jpg", ".jpeg", ".png")):
+                continue
+
+            name = os.path.splitext(f)[0]
+            path = os.path.join(folder, f)
+
+            img = cv2.imread(path)
+            if img is None:
+                failed.append(f)
+                continue
+
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            dets = detector(gray)
+            if len(dets) != 1:
+                failed.append(f)
+                continue
+
+            shape = sp(gray, dets[0])
+            desc = np.array(
+                facerec.compute_face_descriptor(img, shape)
+            )
+
+            with self.lock:
+                self.db[name] = desc
+
+            success += 1
+
+        if success:
+            self._save_db()
+
+        return True, {"registered": success, "failed": failed}

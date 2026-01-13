@@ -5,7 +5,7 @@ from face_engine import FaceEngine
 
 CAMERA_INDEX = 0
 SCALE = 0.5
-COOLDOWN_SEC = 5
+COOLDOWN = 5
 WEBHOOK_URL = "http://localhost:3000/face-event"
 
 engine = FaceEngine()
@@ -16,7 +16,7 @@ cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 last_sent = {}
 
-print("[INFO] Realtime daemon started")
+print("[INFO] Realtime face daemon running")
 
 while True:
     ret, frame = cap.read()
@@ -31,14 +31,13 @@ while True:
     for r in results:
         name = r["name"]
         dist = r["distance"]
-        
-        print(f"[INFO] Detected: {name} (dist: {dist:.4f})")
+
+        print(f"[DETECT] {name} ({dist:.4f})")
 
         if name == "UNKNOWN":
             continue
 
-        last = last_sent.get(name, 0)
-        if now - last < COOLDOWN_SEC:
+        if now - last_sent.get(name, 0) < COOLDOWN:
             continue
 
         payload = {
@@ -51,6 +50,6 @@ while True:
             # requests.post(WEBHOOK_URL, json=payload, timeout=2)
             last_sent[name] = now
         except Exception as e:
-            print("[ERROR] Webhook failed:", e)
+            print("[WEBHOOK ERROR]", e)
 
     time.sleep(0.05)
