@@ -37,7 +37,7 @@ API Server (Flask)
 ### Python Dependencies
 
 ```bash
-pip install flask opencv-python numpy requests
+pip install -r requirements.txt
 ```
 
 > Additional dependencies may be required depending on the internal implementation of `FaceEngine` (e.g. dlib).
@@ -204,14 +204,3 @@ Ensure `face_engine.py` is present and compatible.
 - Add API keys or JWT for production use
 - Limit ZIP upload size
 
----
-
-## 📜 License
-
-MIT License
-
----
-
-## ✨ Author
-
-Built for real-time computer vision systems.
