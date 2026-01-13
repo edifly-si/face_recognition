@@ -42,6 +42,17 @@ while True:
     results = engine.recognize(frame)
     now = time.time()
 
+    # default: tidak ada wajah
+    ws_payload = {
+        "type": "face_event",
+        "name": None,
+        "distance": None,
+        "status": "NO_FACE",
+        "box": None,
+        "timestamp": int(now),
+        "frame": encode_frame(frame) if ws else None
+    }
+
     for r in results:
         name = r["name"]
         dist = r["distance"]
@@ -65,35 +76,21 @@ while True:
         )
 
         print(f"[GATE] {status} | {label}")
-        if ws:
-            frame_b64 = encode_frame(frame)
 
-            ws.send({
-                "type": "face_event",
-                "name": name,
-                "distance": round(dist, 4),
-                "status": status,
-                "box": [x1, y1, x2, y2],
-                "timestamp": int(now),
-                "frame": frame_b64
-            })
-
-        if status != "ACCEPT":
-            continue
-
-        if now - last_sent.get(name, 0) < COOLDOWN:
-            continue
-
-        payload = {
+        # update payload untuk wajah pertama saja (atau bisa dibuat list untuk banyak wajah)
+        ws_payload.update({
             "name": name,
             "distance": round(dist, 4),
-            "timestamp": int(now)
-        }
+            "status": status,
+            "box": [x1, y1, x2, y2]
+        })
 
-        try:
+        if status == "PASS" and now - last_sent.get(name, 0) >= COOLDOWN:
             last_sent[name] = now
-        except Exception as e:
-            print("[WEBHOOK ERROR]", e)
+            # webhook logic bisa tetap jalan di sini
+
+    if ws:
+        ws.send(ws_payload)
 
     if SHOW_WINDOW:
         cv2.imshow("Face Recognition", frame)
