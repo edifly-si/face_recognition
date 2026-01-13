@@ -6,7 +6,8 @@ from face_engine import FaceEngine
 CAMERA_INDEX = 0
 SCALE = 0.5
 COOLDOWN = 5
-SHOW_WINDOW = False
+SHOW_WINDOW = True
+TH_ACCEPT = 0.4
 WEBHOOK_URL = "http://localhost:3000/face-event"
 
 engine = FaceEngine()
@@ -33,23 +34,33 @@ while True:
         name = r["name"]
         dist = r["distance"]
 
-        # OPTIONAL: kalau ada box dari engine
-        if "box" in r:
-            x1, y1, x2, y2 = r["box"]
-            color = (0, 255, 0) if name != "UNKNOWN" else (0, 0, 255)
+        if "box" not in r:
+            continue
 
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(
-                frame,
-                f"{name} ({dist:.3f})",
-                (x1, y1 - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                color,
-                2
-            )
+        x1, y1, x2, y2 = r["box"]
 
-        print(f"[DETECT] {name} ({dist:.4f})")
+        if dist < TH_ACCEPT:
+            color = (0, 255, 0)  # GREEN
+            label = f"{name} ({dist:.3f})"
+            status = "ACCEPT"
+        else:
+            color = (0, 0, 255)  # RED
+            label = f"UNKNOWN ({dist:.3f})"
+            status = "REJECT"
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(
+            frame,
+            label,
+            (x1, max(25, y1 - 10)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            color,
+            2
+        )
+
+        print(f"[GATE] {status} | {label}")
+
 
         if name == "UNKNOWN":
             continue
