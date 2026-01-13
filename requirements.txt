@@ -7,6 +7,7 @@
 flask==3.0.3
 opencv-python==4.10.0.84
 dlib==20.0.0
+websocket-client==1.8.0
 
 # ---------------------------------------------
 # End of Requirements File
