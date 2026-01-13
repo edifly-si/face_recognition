@@ -108,7 +108,7 @@ GET `/faces`
 
 Response:
 ```json
-["John", "Alice", "Bob"]
+["katya", "zero", "ema"]
 ```
 
 ---
@@ -120,11 +120,9 @@ POST `/register-faces`
 ZIP format:
 ```
 faces.zip
-├── John/
-│   ├── 1.jpg
-│   └── 2.jpg
-├── Alice/
-│   └── alice.png
+   ├── katya.jpg
+   ├── zero.jpg
+   └── ema.jpg
 ```
 
 ```bash
@@ -135,7 +133,7 @@ curl -X POST http://localhost:5000/register-faces   -F "zip=@faces.zip"
 
 ## 🎥 Realtime Face Recognition Daemon
 
-File: `realtime_daemon.py`
+File: `detector.py`
 
 Features:
 - Realtime camera capture
@@ -147,7 +145,7 @@ Features:
 ### Run
 
 ```bash
-python realtime_daemon.py
+python detector.py
 ```
 
 ### Configuration
@@ -167,7 +165,7 @@ Sent when a known face is detected:
 
 ```json
 {
-  "name": "John",
+  "name": "katya",
   "distance": 0.4123,
   "timestamp": 1736400000
 }
@@ -182,7 +180,7 @@ Cooldown prevents repeated events for the same face.
 - Reduce `SCALE` for higher FPS
 - `CAP_PROP_BUFFERSIZE = 1` minimizes latency
 - Works well on CPU-only devices
-- Suitable for Jetson Nano, Orange Pi, Raspberry Pi
+- Suitable for Jetson Nano, Orange Pi, Raspberry Pi (tested on jetson nano with 1K registered faces)
 
 ---
 
