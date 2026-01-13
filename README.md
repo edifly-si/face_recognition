@@ -8,7 +8,7 @@ This project supports:
 - Face unregistration
 - Listing registered faces
 - Realtime face recognition from camera
-- Webhook events on successful recognition
+- Webhook event on successful recognition
 
 Designed for:
 - Access control systems
