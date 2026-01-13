@@ -34,14 +34,14 @@ while True:
         x1, y1, x2, y2 = r["box"]
         print("[DEBUG]", name, dist, (x1, y1, x2, y2))
 
-        if dist < TH_ACCEPT:
+        if dist > TH_ACCEPT:
             color = (0, 255, 0)
-            label = f"{name} ({dist:.3f})"
-            status = "ACCEPT"
+            label = f"PASS ({dist:.3f})"
+            status = "REJECT"
         else:
             color = (0, 0, 255)
-            label = f"UNKNOWN ({dist:.3f})"
-            status = "REJECT"
+            label = f"{name} ({dist:.3f})"
+            status = "ACCEPT"
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         cv2.putText(
