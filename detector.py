@@ -7,10 +7,12 @@ from settings import WS_URL, WS_JPEG_QUALITY
 
 from settings import (
     VIDEO_SOURCE, SCALE, COOLDOWN,
-    SHOW_WINDOW, TH_ACCEPT, WEBHOOK_URL
+    SHOW_WINDOW, TH_ACCEPT, WEBHOOK_URL, WS_ENABLE
 )
 
-ws = WSClient(WS_URL) if WS_URL else None
+ws = None
+if WS_ENABLE:
+    ws = WSClient(WS_URL) if WS_URL else None
 
 engine = FaceEngine()
 engine.start_watcher()
@@ -38,7 +40,7 @@ while True:
         time.sleep(0.1)
         continue
 
-    frame = cv2.resize(frame, None, fx=SCALE, fy=SCALE)
+    # frame = cv2.resize(frame, None, fx=SCALE, fy=SCALE)
     results = engine.recognize(frame)
     now = time.time()
 
