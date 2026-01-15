@@ -6,8 +6,8 @@ from ws_client import WSClient
 from settings import WS_URL, WS_JPEG_QUALITY
 
 from settings import (
-    VIDEO_SOURCE, SCALE, COOLDOWN,
-    SHOW_WINDOW, TH_ACCEPT, WEBHOOK_URL, WS_ENABLE
+    VIDEO_SOURCE, COOLDOWN,
+    SHOW_WINDOW, TH_ACCEPT, WS_ENABLE
 )
 
 ws = None
@@ -40,11 +40,9 @@ while True:
         time.sleep(0.1)
         continue
 
-    # frame = cv2.resize(frame, None, fx=SCALE, fy=SCALE)
     results = engine.recognize(frame)
     now = time.time()
 
-    # default: tidak ada wajah
     ws_payload = {
         "type": "face_event",
         "name": None,
@@ -59,12 +57,12 @@ while True:
         name = r["name"]
         dist = r["distance"]
         x1, y1, x2, y2 = r["box"]
-        print("[DEBUG]", name, dist, (x1, y1, x2, y2))
 
         if dist > TH_ACCEPT:
             color = (0, 255, 0)
-            label = f"PASS ({dist:.3f})"
+            label =  "PASS"
             status = "PASS"
+            name = None
         else:
             color = (0, 0, 255)
             label = f"{name} ({dist:.3f})"
@@ -79,7 +77,6 @@ while True:
 
         print(f"[GATE] {status} | {label}")
 
-        # update payload untuk wajah pertama saja (atau bisa dibuat list untuk banyak wajah)
         ws_payload.update({
             "name": name,
             "distance": round(dist, 4),
@@ -89,7 +86,7 @@ while True:
 
         if status == "PASS" and now - last_sent.get(name, 0) >= COOLDOWN:
             last_sent[name] = now
-            # webhook logic bisa tetap jalan di sini
+            # WEBHOOK trigger
 
     if ws:
         ws.send(ws_payload)
