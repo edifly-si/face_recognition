@@ -22,6 +22,14 @@ class FaceEngine:
         self.db_mtime = 0
         self.lock = threading.Lock()
         self.load_db(force=True)
+        
+    def find_similar(self, desc):
+        for name, db_desc in self.db.items():
+            dist = np.linalg.norm(desc - db_desc)
+            if dist < THRESHOLD:
+                return name, dist
+        return None, None
+
 
     # =====================
     # DB LOAD
@@ -72,16 +80,26 @@ class FaceEngine:
         dets = detector(gray)
 
         if len(dets) != 1:
-            return False, "Harus tepat 1 wajah"
+            return False, "Face not detected or multiple faces found"
 
         shape = sp(gray, dets[0])
         desc = np.array(facerec.compute_face_descriptor(frame, shape))
 
         with self.lock:
+            old_name, dist = self.find_similar(desc)
+
+            if old_name:
+                print(f"[REPLACE] {old_name} -> {name} (dist={dist:.4f})")
+                del self.db[old_name]
+
             self.db[name] = desc
             self._save_db()
 
-        return True, f"Wajah {name} diregister"
+        if old_name:
+            return True, f"Face replace from {old_name} to {name}"
+        else:
+            return True, f"Face {name} registered successfully"
+
 
     # =====================
     # UNREGISTER
