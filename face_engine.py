@@ -80,7 +80,7 @@ class FaceEngine:
         dets = detector(gray)
 
         if len(dets) != 1:
-            return False, "Face not detected or multiple faces found"
+            return {"error": "Face not detected or multiple faces found"}, 400
 
         shape = sp(gray, dets[0])
         desc = np.array(facerec.compute_face_descriptor(frame, shape))
