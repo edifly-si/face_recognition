@@ -1,4 +1,5 @@
 faces/
-__pycache__
 *.pkl
 .env
+__pycache__
+*.pyc
