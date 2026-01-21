@@ -4,6 +4,7 @@ import numpy as np
 import tempfile
 import os
 from zipfile import ZipFile
+from api_helper import require_basic_auth
 from face_engine import FaceEngine
 from settings import FLASK_HOST, FLASK_PORT
 
@@ -20,6 +21,7 @@ def read_image(file):
 # REGISTER SINGLE
 # =====================
 @app.route("/register", methods=["POST"])
+@require_basic_auth
 def register():
     name = request.form.get("name")
     file = request.files.get("image")
@@ -35,6 +37,7 @@ def register():
 # UNREGISTER
 # =====================
 @app.route("/unregister", methods=["POST"])
+@require_basic_auth
 def unregister():
     name = request.form.get("name")
     if not name:
@@ -47,6 +50,7 @@ def unregister():
 # LIST
 # =====================
 @app.route("/faces", methods=["GET"])
+@require_basic_auth
 def faces():
     return jsonify(list(engine.db.keys()))
 
@@ -54,6 +58,7 @@ def faces():
 # REGISTER ZIP
 # =====================
 @app.route("/register-faces", methods=["POST"])
+@require_basic_auth
 def register_zip():
     if "zip" not in request.files:
         return {"error": "zip missing"}, 400

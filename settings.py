@@ -34,8 +34,11 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 FLASK_PORT = int(os.getenv("FLASK_PORT", 5000))
+AUTH_USER = os.getenv("AUTH_USER")
+AUTH_PASS = os.getenv("AUTH_PASS")
 
 WS_ENABLE = _cast(os.getenv("WS_ENABLE", "false"))
 WS_URL = os.getenv("WS_URL")
 WS_JPEG_QUALITY = int(os.getenv("WS_JPEG_QUALITY", 70))
+
 
