@@ -41,4 +41,6 @@ WS_ENABLE = _cast(os.getenv("WS_ENABLE", "false"))
 WS_URL = os.getenv("WS_URL")
 WS_JPEG_QUALITY = int(os.getenv("WS_JPEG_QUALITY", 70))
 
+HEARTBEAT_URL = os.getenv("HEARTBEAT_URL")
+
 

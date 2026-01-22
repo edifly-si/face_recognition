@@ -1,4 +1,7 @@
 from flask import Flask, request, jsonify
+import threading
+import time
+import requests
 import cv2
 import numpy as np
 import tempfile
@@ -6,7 +9,7 @@ import os
 from zipfile import ZipFile
 from api_helper import require_basic_auth
 from face_engine import FaceEngine
-from settings import FLASK_HOST, FLASK_PORT
+from settings import AUTH_USER, FLASK_HOST, FLASK_PORT, HEARTBEAT_URL
 
 
 app = Flask(__name__)
@@ -74,5 +77,28 @@ def register_zip():
     ok, result = engine.register_from_folder("faces")
     return {"success": ok, "result": result}
 
+def heartbeat_job():
+    time.sleep(3)
+
+    url = f"{HEARTBEAT_URL}/{AUTH_USER}"
+
+    while True:
+        try:
+            resp = requests.get(
+                url,
+                timeout=5,
+                params={"name": "heartbeat"},
+            )
+            print("[HEARTBEAT]", resp.status_code)
+        except Exception as e:
+            print(e)
+            
+            print("[HEARTBEAT ERROR]", e)
+
+        time.sleep(30)
+
+
 if __name__ == "__main__":
+    t = threading.Thread(target=heartbeat_job, daemon=True)
+    t.start()
     app.run(host=FLASK_HOST, port=FLASK_PORT, threaded=True)
