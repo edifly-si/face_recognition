@@ -6,7 +6,7 @@ import os
 import threading
 import time
 from settings import (
-    DB_PATH, FACES_DIR, THRESHOLD,
+    DB_PATH, FACES_DIR, TH_ACCEPT, THRESHOLD,
     SHAPE_MODEL, FACE_MODEL
 )
 
@@ -26,7 +26,7 @@ class FaceEngine:
     def find_similar(self, desc):
         for name, db_desc in self.db.items():
             dist = np.linalg.norm(desc - db_desc)
-            if dist < THRESHOLD:
+            if dist < TH_ACCEPT:
                 return name, dist
         return None, None
 
@@ -70,7 +70,7 @@ class FaceEngine:
         tmp = DB_PATH + ".tmp"
         with open(tmp, "wb") as f:
             pickle.dump(self.db, f)
-        os.replace(tmp, DB_PATH)
+        os.replace(tmp, DB_PATH)    
 
     # =====================
     # REGISTER (single image)
