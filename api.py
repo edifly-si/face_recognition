@@ -11,7 +11,7 @@ from api_helper import require_basic_auth
 from face_engine import FaceEngine
 import base64
 from requests.auth import HTTPBasicAuth
-from settings import AUTH_USER, FLASK_HOST, FLASK_PORT, HEARTBEAT_URL, SYNC_BASE_URL, SYNC_USER, SYNC_PASSWORD
+from settings import AUTH_USER, FLASK_HOST, FLASK_PORT, HEARTBEAT_URL, SYNC_BASE_URL, SYNC_USER, SYNC_PASSWORD, FILE_SYNC_URL
 
 SYNC_INTERVAL = 30 * 60
 SYNC_SINCE_FILE = "sync_since.txt"
@@ -167,7 +167,7 @@ def syncFace():
                     continue
 
                 img_resp = requests.get(
-                    f"{SYNC_BASE_URL}/blacklist/image/{image_name}",
+                    f"{FILE_SYNC_URL}/{image_name}",
                     auth=node_auth(),
                     timeout=15,
                 )
@@ -176,12 +176,12 @@ def syncFace():
                 raw = img_resp.json()
 
                 if raw.get("error") != 0:
-                    print("[SYNC_BASE_URL] image error:", raw)
+                    print("[FILE_SYNC_URL] image error:", raw)
                     continue
 
                 data = raw.get("data")
                 if not data or "base64" not in data:
-                    print("[SYNC_BASE_URL] invalid image payload:", raw)
+                    print("[FILE_SYNC_URL] invalid image payload:", raw)
                     continue
 
                 frame = base64_to_image(data["base64"])

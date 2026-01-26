@@ -45,6 +45,7 @@ HEARTBEAT_URL = os.getenv("HEARTBEAT_URL")
 
 SYNC_BASE_URL = os.getenv("SYNC_BASE_URL")
 SYNC_USER = os.getenv("SYNC_USER")
-SYNC_PASSWORD = os.getenv("SYNC_PASSWORD")
+FILE_SYNC_URL = os.getenv("SYNC_PASSWORD")
+FILE_SYNC_URL = os.getenv("FILE_SYNC_URL")
 
 
