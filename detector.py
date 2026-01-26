@@ -14,7 +14,7 @@ ws = None
 if WS_ENABLE:
     ws = WSClient(WS_URL) if WS_URL else None
 
-print(ws)
+print(WS_ENABLE, WS_URL)
 
 engine = FaceEngine()
 engine.start_watcher()
@@ -89,10 +89,8 @@ while True:
         if status == "PASS" and now - last_sent.get(name, 0) >= COOLDOWN:
             last_sent[name] = now
             # WEBHOOK trigger
-    print("WS NIH",ws)
     
     if ws:
-        print(ws_payload)
         ws.send(ws_payload)
 
     if SHOW_WINDOW:
