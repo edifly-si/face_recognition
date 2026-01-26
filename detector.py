@@ -89,6 +89,7 @@ while True:
             # WEBHOOK trigger
 
     if ws:
+        print(ws_payload)
         ws.send(ws_payload)
 
     if SHOW_WINDOW:
