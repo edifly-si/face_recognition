@@ -13,7 +13,7 @@ import base64
 from requests.auth import HTTPBasicAuth
 from settings import AUTH_USER, FLASK_HOST, FLASK_PORT, HEARTBEAT_URL, SYNC_BASE_URL, SYNC_USER, SYNC_PASSWORD, FILE_SYNC_URL
 
-SYNC_INTERVAL = 30 * 60
+SYNC_INTERVAL = 30
 SYNC_SINCE_FILE = "sync_since.txt"
 app = Flask(__name__)
 engine = FaceEngine()
