@@ -8,29 +8,45 @@ class WSClient:
         self.url = url
         self.ws = None
         self.connected = False
-        self._connect()
+        self.lock = threading.Lock()
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
 
-    def _connect(self):
-        def run():
-            while True:
+    def _run(self):
+        while True:
+            if not self.connected:
                 try:
+                    print("[WS] Connecting...")
                     self.ws = websocket.WebSocket()
-                    self.ws.connect(self.url, timeout=3)
+                    self.ws.settimeout(5)
+                    self.ws.connect(self.url)
                     self.connected = True
                     print("[WS] Connected")
-                    break
                 except Exception as e:
-                    print("[WS] Retry...", e)
-                    time.sleep(2)
+                    print("[WS] Connect failed:", e)
+                    self.connected = False
+                    time.sleep(3)
+                    continue
 
-        threading.Thread(target=run, daemon=True).start()
+            # connection watchdog
+            try:
+                self.ws.ping()
+                time.sleep(5)
+            except Exception as e:
+                print("[WS] Lost connection:", e)
+                self.connected = False
+                try:
+                    self.ws.close()
+                except:
+                    pass
+                time.sleep(2)
 
     def send(self, data):
         if not self.connected:
             return
         try:
-            self.ws.send(json.dumps(data))
+            with self.lock:
+                self.ws.send(json.dumps(data))
         except Exception as e:
-            print("[WS] Send failed:", e)
+            print("[WS] Send error:", e)
             self.connected = False
-            self._connect()
