@@ -66,12 +66,14 @@ engine.start_watcher()
 
 print("[INFO] Video source:", VIDEO_SOURCE)
 
-if VIDEO_SOURCE.startswith("rtsp://"):
+if isinstance(VIDEO_SOURCE, str) and VIDEO_SOURCE.startswith("rtsp://"):
     print("[INFO] RTSP mode (OpenCV FFmpeg)")
     cam = FastRTSP(VIDEO_SOURCE)
 else:
+    print("[INFO] Local camera mode")
     cam = cv2.VideoCapture(VIDEO_SOURCE)
     cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
 
 last_sent = {}
 print("[INFO] Realtime face daemon running")
