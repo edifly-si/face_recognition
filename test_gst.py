@@ -1,26 +1,145 @@
 import cv2
-
-gst = (
-    "rtspsrc location=rtsp://admin:S3mangat45%2A%2A@192.168.1.65 latency=50 ! "
-    "rtph265depay ! h265parse ! "
-    "nvv4l2decoder ! "
-    "nvvidconv ! video/x-raw,format=BGRx ! "
-    "videoconvert ! video/x-raw,format=BGR ! "
-    "appsink"
+import time
+import threading
+import base64
+from face_engine import FaceEngine
+from ws_client import WSClient
+from settings import (
+    VIDEO_SOURCE,
+    WS_URL,
+    WS_ENABLE,
+    WS_JPEG_QUALITY,
+    COOLDOWN,
+    TH_ACCEPT,
 )
 
-cap = cv2.VideoCapture(gst, cv2.CAP_GSTREAMER)
-print("Opened:", cap.isOpened())
+# =========================
+# FAST RTSP CAPTURE (NO GSTREAMER)
+# =========================
+class FastRTSP:
+    def __init__(self, url):
+        self.cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.frame = None
+        self.lock = threading.Lock()
+        self.running = True
+        threading.Thread(target=self._reader, daemon=True).start()
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        print("No frame")
-        break
+    def _reader(self):
+        while self.running:
+            # buang frame lama
+            for _ in range(5):
+                self.cap.grab()
 
-    cv2.imshow("RTSP", frame)
-    if cv2.waitKey(1) == 27:
-        break
+            ret, frame = self.cap.retrieve()
+            if ret:
+                with self.lock:
+                    self.frame = frame
+            else:
+                time.sleep(0.05)
 
-cap.release()
-cv2.destroyAllWindows()
+    def read(self):
+        with self.lock:
+            return self.frame
+
+    def release(self):
+        self.running = False
+        self.cap.release()
+
+# =========================
+# JPEG ENCODER
+# =========================
+def encode_frame(frame):
+    ok, buf = cv2.imencode(
+        ".jpg",
+        frame,
+        [cv2.IMWRITE_JPEG_QUALITY, WS_JPEG_QUALITY]
+    )
+    if not ok:
+        return None
+    return base64.b64encode(buf).decode("utf-8")
+
+# =========================
+# INIT WS
+# =========================
+ws = None
+if WS_ENABLE and WS_URL:
+    ws = WSClient(WS_URL)
+
+print("[INFO] WS:", WS_ENABLE, WS_URL)
+
+# =========================
+# INIT FACE ENGINE
+# =========================
+engine = FaceEngine()
+engine.start_watcher()
+
+# =========================
+# INIT CAMERA
+# =========================
+print("[INFO] Video source:", VIDEO_SOURCE)
+
+if VIDEO_SOURCE.startswith("rtsp://"):
+    print("[INFO] RTSP mode (OpenCV FFmpeg)")
+    cam = FastRTSP(VIDEO_SOURCE)
+else:
+    cam = cv2.VideoCapture(VIDEO_SOURCE)
+    cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+last_sent = {}
+print("[INFO] Realtime face daemon running")
+
+# =========================
+# MAIN LOOP
+# =========================
+while True:
+    frame = cam.read() if isinstance(cam, FastRTSP) else cam.read()[1]
+
+    if frame is None:
+        time.sleep(0.02)
+        continue
+
+    now = time.time()
+    results = engine.recognize(frame)
+
+    ws_payload = {
+        "type": "face_event",
+        "name": None,
+        "distance": None,
+        "status": "NO_FACE",
+        "box": None,
+        "timestamp": int(now),
+        "frame": encode_frame(frame) if ws else None
+    }
+
+    for r in results:
+        name = r["name"]
+        dist = r["distance"]
+        x1, y1, x2, y2 = r["box"]
+
+        if dist > TH_ACCEPT:
+            status = "PASS"
+            name = None
+        else:
+            status = "REJECT"
+
+        print(f"[GATE] {status} | {name} | {dist:.3f}")
+
+        ws_payload.update({
+            "name": name,
+            "distance": round(dist, 4),
+            "status": status,
+            "box": [x1, y1, x2, y2]
+        })
+
+        if status == "PASS":
+            if now - last_sent.get(name, 0) >= COOLDOWN:
+                last_sent[name] = now
+                # trigger webhook di sini kalau mau
+
+    if ws:
+        ws.send(ws_payload)
+
+    # kontrol CPU
+    time.sleep(0.03)
+
