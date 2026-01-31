@@ -7,12 +7,18 @@ import threading
 import time
 from settings import (
     DB_PATH, FACES_DIR, TH_ACCEPT, THRESHOLD,
-    SHAPE_MODEL, FACE_MODEL
+    SHAPE_MODEL, FACE_MODEL, FACE_DETECTOR_MODE, CNN_MODEL
 )
 
 os.makedirs(FACES_DIR, exist_ok=True)
 
-detector = dlib.get_frontal_face_detector()
+if FACE_DETECTOR_MODE == "cuda":
+    print("[FACE] Detector mode: CUDA CNN")
+    detector = dlib.cnn_face_detection_model_v1(CNN_MODEL)
+else:
+    print("[FACE] Detector mode: CPU HOG")
+    detector = dlib.get_frontal_face_detector()
+
 sp = dlib.shape_predictor(SHAPE_MODEL)
 facerec = dlib.face_recognition_model_v1(FACE_MODEL)
 
@@ -22,7 +28,7 @@ class FaceEngine:
         self.db_mtime = 0
         self.lock = threading.Lock()
         self.load_db(force=True)
-        
+
     def find_similar(self, desc):
         for name, db_desc in self.db.items():
             dist = np.linalg.norm(desc - db_desc)
@@ -30,10 +36,7 @@ class FaceEngine:
                 return name, dist
         return None, None
 
-
-    # =====================
     # DB LOAD
-    # =====================
     def load_db(self, force=False):
         if not os.path.exists(DB_PATH):
             return
@@ -52,9 +55,6 @@ class FaceEngine:
             except Exception as e:
                 print("[DB] Reload failed:", e)
 
-    # =====================
-    # WATCHER THREAD
-    # =====================
     def start_watcher(self, interval=1):
         def watch():
             while True:
@@ -63,27 +63,32 @@ class FaceEngine:
 
         threading.Thread(target=watch, daemon=True).start()
 
-    # =====================
-    # SAVE DB (ATOMIC)
-    # =====================
     def _save_db(self):
         tmp = DB_PATH + ".tmp"
         with open(tmp, "wb") as f:
             pickle.dump(self.db, f)
-        os.replace(tmp, DB_PATH)    
+        os.replace(tmp, DB_PATH)
 
-    # =====================
-    # REGISTER (single image)
-    # =====================
+    # REGISTER
     def register(self, name, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        dets = detector(gray)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        if len(dets) != 1:
+        # ---------- DETECT ----------
+        if FACE_DETECTOR_MODE == "cuda":
+            dets = detector(rgb, 1)
+            rects = [d.rect for d in dets]
+        else:
+            rects = detector(gray)
+
+        if len(rects) != 1:
             return {"error": "Face not detected or multiple faces found"}, 400
 
-        shape = sp(gray, dets[0])
-        desc = np.array(facerec.compute_face_descriptor(frame, shape))
+        rect = rects[0]
+        shape = sp(gray if FACE_DETECTOR_MODE == "cpu" else rgb, rect)
+        desc = np.array(
+            facerec.compute_face_descriptor(frame, shape)
+        )
 
         with self.lock:
             old_name, dist = self.find_similar(desc)
@@ -100,10 +105,7 @@ class FaceEngine:
         else:
             return True, f"Face {name} registered successfully"
 
-
-    # =====================
     # UNREGISTER
-    # =====================
     def unregister(self, name):
         with self.lock:
             if name not in self.db:
@@ -119,19 +121,24 @@ class FaceEngine:
 
         return True, f"Wajah {name} dihapus"
 
-    # =====================
     # RECOGNIZE
-    # =====================
     def recognize(self, frame):
         results = []
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        dets = detector(gray)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # ---------- DETECT ----------
+        if FACE_DETECTOR_MODE == "cuda":
+            dets = detector(rgb, 0)
+            rects = [d.rect for d in dets]
+        else:
+            rects = detector(gray)
 
         with self.lock:
             db_snapshot = self.db.copy()
 
-        for d in dets:
-            shape = sp(gray, d)
+        for rect in rects:
+            shape = sp(gray if FACE_DETECTOR_MODE == "cpu" else rgb, rect)
             cur_desc = np.array(
                 facerec.compute_face_descriptor(frame, shape)
             )
@@ -148,14 +155,17 @@ class FaceEngine:
             results.append({
                 "name": best_name if best_dist < THRESHOLD else "UNKNOWN",
                 "distance": float(best_dist),
-                "box": [d.left(), d.top(), d.right(), d.bottom()]
+                "box": [
+                    rect.left(),
+                    rect.top(),
+                    rect.right(),
+                    rect.bottom()
+                ]
             })
 
         return results
 
-    # =====================
     # REGISTER FROM FOLDER
-    # =====================
     def register_from_folder(self, folder):
         if not os.path.isdir(folder):
             return False, "Folder tidak ada"
@@ -175,12 +185,20 @@ class FaceEngine:
                 continue
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            dets = detector(gray)
-            if len(dets) != 1:
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+            if FACE_DETECTOR_MODE == "cuda":
+                dets = detector(rgb, 1)
+                rects = [d.rect for d in dets]
+            else:
+                rects = detector(gray)
+
+            if len(rects) != 1:
                 failed.append(f)
                 continue
 
-            shape = sp(gray, dets[0])
+            rect = rects[0]
+            shape = sp(gray if FACE_DETECTOR_MODE == "cpu" else rgb, rect)
             desc = np.array(
                 facerec.compute_face_descriptor(img, shape)
             )

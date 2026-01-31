@@ -21,6 +21,8 @@ FACES_DIR = os.getenv("FACES_DIR", "faces")
 
 SHAPE_MODEL = os.getenv("SHAPE_MODEL")
 FACE_MODEL = os.getenv("FACE_MODEL")
+FACE_DETECTOR_MODE = os.getenv("FACE_DETECTOR_MODE", "cpu").lower()
+CNN_MODEL = os.getenv("CNN_MODEL")
 
 THRESHOLD = float(os.getenv("THRESHOLD", 0.6))
 TH_ACCEPT = float(os.getenv("TH_ACCEPT", 0.4))
@@ -47,5 +49,3 @@ SYNC_BASE_URL = os.getenv("SYNC_BASE_URL")
 SYNC_USER = os.getenv("SYNC_USER")
 SYNC_PASSWORD = os.getenv("SYNC_PASSWORD")
 FILE_SYNC_URL = os.getenv("FILE_SYNC_URL")
-
-
