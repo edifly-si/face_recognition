@@ -5,6 +5,7 @@ import pickle
 import os
 import threading
 import time
+import math
 from settings import (
     DB_PATH, FACES_DIR, TH_ACCEPT, THRESHOLD,
     SHAPE_MODEL, FACE_MODEL, FACE_DETECTOR_MODE, CNN_MODEL
@@ -21,6 +22,28 @@ else:
 
 sp = dlib.shape_predictor(SHAPE_MODEL)
 facerec = dlib.face_recognition_model_v1(FACE_MODEL)
+
+def is_face_straight(shape, max_roll=10, max_yaw=0.15):
+        # ===== ROLL (kepala miring) =====
+        lx = (shape.part(36).x + shape.part(39).x) / 2
+        ly = (shape.part(36).y + shape.part(39).y) / 2
+        rx = (shape.part(42).x + shape.part(45).x) / 2
+        ry = (shape.part(42).y + shape.part(45).y) / 2
+
+        roll = math.degrees(math.atan2(ry - ly, rx - lx))
+        if abs(roll) > max_roll:
+            return False
+
+        # ===== YAW (hadap kiri-kanan) =====
+        nose_x = shape.part(30).x
+        eye_center_x = (lx + rx) / 2
+        face_width = abs(rx - lx)
+
+        yaw = abs(nose_x - eye_center_x) / face_width
+        if yaw > max_yaw:
+            return False
+
+        return True
 
 class FaceEngine:
     def __init__(self):
@@ -86,6 +109,9 @@ class FaceEngine:
 
         rect = rects[0]
         shape = sp(gray if FACE_DETECTOR_MODE == "cpu" else rgb, rect)
+        if not is_face_straight(shape, max_roll=8, max_yaw=0.12):
+            return {"error": "face position is not straight"}, 400
+
         desc = np.array(
             facerec.compute_face_descriptor(frame, shape)
         )
@@ -139,6 +165,10 @@ class FaceEngine:
 
         for rect in rects:
             shape = sp(gray if FACE_DETECTOR_MODE == "cpu" else rgb, rect)
+            if not is_face_straight(shape, max_roll=10, max_yaw=0.18):
+                 print("face not straight")
+                 continue
+
             cur_desc = np.array(
                 facerec.compute_face_descriptor(frame, shape)
             )
