@@ -13,6 +13,9 @@ from settings import (
 
 os.makedirs(FACES_DIR, exist_ok=True)
 
+# =========================
+# DETECTOR
+# =========================
 if FACE_DETECTOR_MODE == "cuda":
     print("[FACE] Detector mode: CUDA CNN")
     detector = dlib.cnn_face_detection_model_v1(CNN_MODEL)
@@ -23,28 +26,32 @@ else:
 sp = dlib.shape_predictor(SHAPE_MODEL)
 facerec = dlib.face_recognition_model_v1(FACE_MODEL)
 
+# =========================
+# POSE FILTER
+# =========================
 def is_face_straight(shape, max_roll=10, max_yaw=0.15):
-        # ===== ROLL (kepala miring) =====
-        lx = (shape.part(36).x + shape.part(39).x) / 2
-        ly = (shape.part(36).y + shape.part(39).y) / 2
-        rx = (shape.part(42).x + shape.part(45).x) / 2
-        ry = (shape.part(42).y + shape.part(45).y) / 2
+    lx = (shape.part(36).x + shape.part(39).x) / 2
+    ly = (shape.part(36).y + shape.part(39).y) / 2
+    rx = (shape.part(42).x + shape.part(45).x) / 2
+    ry = (shape.part(42).y + shape.part(45).y) / 2
 
-        roll = math.degrees(math.atan2(ry - ly, rx - lx))
-        if abs(roll) > max_roll:
-            return False
+    roll = math.degrees(math.atan2(ry - ly, rx - lx))
+    if abs(roll) > max_roll:
+        return False
 
-        # ===== YAW (hadap kiri-kanan) =====
-        nose_x = shape.part(30).x
-        eye_center_x = (lx + rx) / 2
-        face_width = abs(rx - lx)
+    nose_x = shape.part(30).x
+    eye_center_x = (lx + rx) / 2
+    face_width = abs(rx - lx)
 
-        yaw = abs(nose_x - eye_center_x) / face_width
-        if yaw > max_yaw:
-            return False
+    yaw = abs(nose_x - eye_center_x) / face_width
+    if yaw > max_yaw:
+        return False
 
-        return True
+    return True
 
+# =========================
+# FACE ENGINE
+# =========================
 class FaceEngine:
     def __init__(self):
         self.db = {}
@@ -52,14 +59,9 @@ class FaceEngine:
         self.lock = threading.Lock()
         self.load_db(force=True)
 
-    def find_similar(self, desc):
-        for name, db_desc in self.db.items():
-            dist = np.linalg.norm(desc - db_desc)
-            if dist < TH_ACCEPT:
-                return name, dist
-        return None, None
-
-    # DB LOAD
+    # =========================
+    # DB
+    # =========================
     def load_db(self, force=False):
         if not os.path.exists(DB_PATH):
             return
@@ -83,7 +85,6 @@ class FaceEngine:
             while True:
                 self.load_db()
                 time.sleep(interval)
-
         threading.Thread(target=watch, daemon=True).start()
 
     def _save_db(self):
@@ -92,12 +93,37 @@ class FaceEngine:
             pickle.dump(self.db, f)
         os.replace(tmp, DB_PATH)
 
-    # REGISTER
-    def register(self, name, frame):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    # =========================
+    # CORE UTILS
+    # =========================
+    def _get_face_chip(self, rgb, shape):
+        """
+        KUNCI AKURASI:
+        align + crop ke 150x150
+        """
+        return dlib.get_face_chip(rgb, shape, size=150)
 
-        # ---------- DETECT ----------
+    def find_similar(self, desc):
+        best_name = None
+        best_dist = 999
+
+        for name, db_desc in self.db.items():
+            dist = np.linalg.norm(desc - db_desc)
+            if dist < best_dist:
+                best_dist = dist
+                best_name = name
+
+        if best_dist < TH_ACCEPT:
+            return best_name, best_dist
+        return None, None
+
+    # =========================
+    # REGISTER
+    # =========================
+    def register(self, name, frame):
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
         if FACE_DETECTOR_MODE == "cuda":
             dets = detector(rgb, 1)
             rects = [d.rect for d in dets]
@@ -108,52 +134,34 @@ class FaceEngine:
             return {"error": "Face not detected or multiple faces found"}, 400
 
         rect = rects[0]
-        shape = sp(gray if FACE_DETECTOR_MODE == "cpu" else rgb, rect)
+        shape = sp(rgb if FACE_DETECTOR_MODE == "cuda" else gray, rect)
+
         if not is_face_straight(shape, max_roll=8, max_yaw=0.12):
             return {"error": "face position is not straight"}, 400
 
+        face_chip = self._get_face_chip(rgb, shape)
         desc = np.array(
-            facerec.compute_face_descriptor(frame, shape)
+            facerec.compute_face_descriptor(face_chip),
+            dtype=np.float32
         )
 
         with self.lock:
             old_name, dist = self.find_similar(desc)
-
             if old_name:
-                print(f"[REPLACE] {old_name} -> {name} (dist={dist:.4f})")
                 del self.db[old_name]
-
             self.db[name] = desc
             self._save_db()
 
-        if old_name:
-            return True, f"Face replace from {old_name} to {name}"
-        else:
-            return True, f"Face {name} registered successfully"
+        return True, f"Face {name} registered"
 
-    # UNREGISTER
-    def unregister(self, name):
-        with self.lock:
-            if name not in self.db:
-                return False, "Wajah tidak ditemukan"
-
-            del self.db[name]
-            self._save_db()
-
-        for ext in (".jpg", ".png", ".jpeg"):
-            p = os.path.join(FACES_DIR, name + ext)
-            if os.path.exists(p):
-                os.remove(p)
-
-        return True, f"Wajah {name} dihapus"
-
+    # =========================
     # RECOGNIZE
+    # =========================
     def recognize(self, frame):
         results = []
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # ---------- DETECT ----------
         if FACE_DETECTOR_MODE == "cuda":
             dets = detector(rgb, 0)
             rects = [d.rect for d in dets]
@@ -164,20 +172,22 @@ class FaceEngine:
             db_snapshot = self.db.copy()
 
         for rect in rects:
-            shape = sp(gray if FACE_DETECTOR_MODE == "cpu" else rgb, rect)
-            if not is_face_straight(shape, max_roll=10, max_yaw=0.18):
-                 print("face not straight")
-                 continue
+            shape = sp(rgb if FACE_DETECTOR_MODE == "cuda" else gray, rect)
 
-            cur_desc = np.array(
-                facerec.compute_face_descriptor(frame, shape)
+            if not is_face_straight(shape, max_roll=10, max_yaw=0.18):
+                continue
+
+            face_chip = self._get_face_chip(rgb, shape)
+            desc = np.array(
+                facerec.compute_face_descriptor(face_chip),
+                dtype=np.float32
             )
 
             best_name = "UNKNOWN"
             best_dist = 999.0
 
             for name, db_desc in db_snapshot.items():
-                dist = np.linalg.norm(cur_desc - db_desc)
+                dist = np.linalg.norm(desc - db_desc)
                 if dist < best_dist:
                     best_dist = dist
                     best_name = name
@@ -194,51 +204,3 @@ class FaceEngine:
             })
 
         return results
-
-    # REGISTER FROM FOLDER
-    def register_from_folder(self, folder):
-        if not os.path.isdir(folder):
-            return False, "Folder tidak ada"
-
-        success, failed = 0, []
-
-        for f in os.listdir(folder):
-            if not f.lower().endswith((".jpg", ".jpeg", ".png")):
-                continue
-
-            name = os.path.splitext(f)[0]
-            path = os.path.join(folder, f)
-
-            img = cv2.imread(path)
-            if img is None:
-                failed.append(f)
-                continue
-
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-            if FACE_DETECTOR_MODE == "cuda":
-                dets = detector(rgb, 1)
-                rects = [d.rect for d in dets]
-            else:
-                rects = detector(gray)
-
-            if len(rects) != 1:
-                failed.append(f)
-                continue
-
-            rect = rects[0]
-            shape = sp(gray if FACE_DETECTOR_MODE == "cpu" else rgb, rect)
-            desc = np.array(
-                facerec.compute_face_descriptor(img, shape)
-            )
-
-            with self.lock:
-                self.db[name] = desc
-
-            success += 1
-
-        if success:
-            self._save_db()
-
-        return True, {"registered": success, "failed": failed}
