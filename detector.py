@@ -2,6 +2,8 @@ import cv2
 import time
 import threading
 import base64
+import statistics
+from collections import defaultdict, deque
 from face_engine import FaceEngine
 from ws_client import WSClient
 from settings import (
@@ -13,6 +15,20 @@ from settings import (
     TH_ACCEPT,
 )
 
+# =========================
+# STRICT CONFIG
+# =========================
+CONFIRM_FRAMES = 5
+HISTORY_SIZE = 5
+MAX_STD = 0.03
+
+history = defaultdict(lambda: deque(maxlen=HISTORY_SIZE))
+confirmed = {}
+last_reject_sent = {}
+
+# =========================
+# FAST RTSP
+# =========================
 class FastRTSP:
     def __init__(self, url):
         self.cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
@@ -24,7 +40,6 @@ class FastRTSP:
 
     def _reader(self):
         while self.running:
-            # buang frame lama
             for _ in range(5):
                 self.cap.grab()
 
@@ -43,6 +58,9 @@ class FastRTSP:
         self.running = False
         self.cap.release()
 
+# =========================
+# FRAME ENCODER
+# =========================
 def encode_frame(frame):
     ok, buf = cv2.imencode(
         ".jpg",
@@ -53,29 +71,25 @@ def encode_frame(frame):
         return None
     return base64.b64encode(buf).decode("utf-8")
 
-ws = None
-if WS_ENABLE and WS_URL:
-    ws = WSClient(WS_URL)
-
+# =========================
+# INIT
+# =========================
+ws = WSClient(WS_URL) if WS_ENABLE and WS_URL else None
 print("[INFO] WS:", WS_ENABLE, WS_URL)
-
 
 engine = FaceEngine()
 engine.start_watcher()
 
-
 print("[INFO] Video source:", VIDEO_SOURCE)
 
 if isinstance(VIDEO_SOURCE, str) and VIDEO_SOURCE.startswith("rtsp://"):
-    print("[INFO] RTSP mode (OpenCV FFmpeg)")
+    print("[INFO] RTSP mode")
     cam = FastRTSP(VIDEO_SOURCE)
 else:
     print("[INFO] Local camera mode")
     cam = cv2.VideoCapture(VIDEO_SOURCE)
     cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-
-last_sent = {}
 print("[INFO] Realtime face daemon running")
 
 # =========================
@@ -91,43 +105,57 @@ while True:
     now = time.time()
     results = engine.recognize(frame)
 
-    ws_payload = {
+    status = "NO_FACE"
+    name = None
+    distance = None
+    box = None
+
+    if results:
+        status = "PASS"
+
+    for r in results:
+        r_name = r["name"]
+        r_dist = r["distance"]
+        r_box = r["box"]
+
+        if r_name == "UNKNOWN":
+            continue
+
+        history[r_name].append(r_dist)
+
+        if len(history[r_name]) < CONFIRM_FRAMES:
+            continue
+
+        avg = sum(history[r_name]) / len(history[r_name])
+        std = statistics.pstdev(history[r_name])
+
+        if avg < TH_ACCEPT and std < MAX_STD:
+            status = "REJECT"
+            name = r_name
+            distance = round(avg, 4)
+            box = r_box
+
+            last = last_reject_sent.get(r_name, 0)
+            if now - last >= COOLDOWN:
+                last_reject_sent[r_name] = now
+                print(f"[REJECT] {r_name} avg={avg:.3f} std={std:.3f}")
+            break
+
+    # =========================
+    # WS PAYLOAD (KIRIM TERUS)
+    # =========================
+    payload = {
         "type": "face_event",
-        "name": None,
-        "distance": None,
-        "status": "NO_FACE",
-        "box": None,
+        "status": status,
+        "name": name,
+        "distance": distance,
+        "box": box,
         "timestamp": int(now),
         "frame": encode_frame(frame) if ws else None
     }
 
-    for r in results:
-        name = r["name"]
-        dist = r["distance"]
-        x1, y1, x2, y2 = r["box"]
-
-        if dist > TH_ACCEPT:
-            status = "PASS"
-            name = None
-        else:
-            status = "REJECT"
-
-        print(f"[GATE] {status} | {name} | {dist:.3f}")
-
-        ws_payload.update({
-            "name": name,
-            "distance": round(dist, 4),
-            "status": status,
-            "box": [x1, y1, x2, y2]
-        })
-
-        if status == "PASS":
-            if now - last_sent.get(name, 0) >= COOLDOWN:
-                last_sent[name] = now
-
     if ws:
-        ws.send(ws_payload)
+        print("[WS] Sending payload:", payload["status"], payload["name"], payload["distance"])
+        ws.send(payload)
 
-    # kontrol CPU
     time.sleep(0.03)
-
