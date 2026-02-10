@@ -136,8 +136,8 @@ class FaceEngine:
         rect = rects[0]
         shape = sp(rgb if FACE_DETECTOR_MODE == "cuda" else gray, rect)
 
-        if not is_face_straight(shape, max_roll=8, max_yaw=0.12):
-            return {"error": "face position is not straight"}, 400
+        # if not is_face_straight(shape, max_roll=8, max_yaw=0.12):
+        #     return {"error": "face position is not straight"}, 400
 
         face_chip = self._get_face_chip(rgb, shape)
         desc = np.array(
@@ -174,8 +174,8 @@ class FaceEngine:
         for rect in rects:
             shape = sp(rgb if FACE_DETECTOR_MODE == "cuda" else gray, rect)
 
-            if not is_face_straight(shape, max_roll=10, max_yaw=0.18):
-                continue
+            # if not is_face_straight(shape, max_roll=10, max_yaw=0.18):
+            #     continue
 
             face_chip = self._get_face_chip(rgb, shape)
             desc = np.array(
