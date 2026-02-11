@@ -123,6 +123,8 @@ while True:
 
         history[r_name].append(r_dist)
 
+        box = r_box
+
         if len(history[r_name]) < CONFIRM_FRAMES:
             continue
 
@@ -155,7 +157,7 @@ while True:
     }
 
     if ws:
-        print("[WS] Sending payload:", payload["status"], payload["name"], payload["distance"])
+        print("[WS] Sending payload:", payload["status"], payload["name"], payload["distance"], payload["box"])
         ws.send(payload)
 
     time.sleep(0.03)
